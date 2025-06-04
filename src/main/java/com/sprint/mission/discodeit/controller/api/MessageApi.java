@@ -1,9 +1,9 @@
 package com.sprint.mission.discodeit.controller.api;
 
-import com.sprint.mission.discodeit.dto.message.MessageCreateRequest;
-import com.sprint.mission.discodeit.dto.message.MessageDto;
-import com.sprint.mission.discodeit.dto.message.MessageUpdateRequest;
-import com.sprint.mission.discodeit.dto.page.PageResponse;
+import com.sprint.mission.discodeit.dto.data.MessageDto;
+import com.sprint.mission.discodeit.dto.request.MessageCreateRequest;
+import com.sprint.mission.discodeit.dto.request.MessageUpdateRequest;
+import com.sprint.mission.discodeit.dto.response.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -13,12 +13,11 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-
-import java.util.List;
-import java.util.UUID;
 import org.springframework.web.multipart.MultipartFile;
 
 @Tag(name = "Message", description = "Message API")
@@ -39,7 +38,7 @@ public interface MessageApi {
       @Parameter(
           description = "Message 생성 정보",
           content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE)
-      ) MessageCreateRequest request,
+      ) MessageCreateRequest messageCreateRequest,
       @Parameter(
           description = "Message 첨부 파일들",
           content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -88,4 +87,4 @@ public interface MessageApi {
       @Parameter(description = "페이징 커서 정보") Instant cursor,
       @Parameter(description = "페이징 정보", example = "{\"size\": 50, \"sort\": \"createdAt,desc\"}") Pageable pageable
   );
-}
+} 

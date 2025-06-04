@@ -1,133 +1,132 @@
--- 테이블 생성
--- 유저 테이블 생성
+-- 테이블
+-- User
 CREATE TABLE users
 (
-    id         UUID PRIMARY KEY,
+    id         uuid PRIMARY KEY,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone,
-    username   VARCHAR(50) UNIQUE       NOT NULL,
-    email      VARCHAR(100) UNIQUE      NOT NULL,
-    password   VARCHAR(60)              NOT NULL,
-    profile_id UUID,
-    role       VARCHAR(30)              NOT NULL
+    username   varchar(50) UNIQUE       NOT NULL,
+    email      varchar(100) UNIQUE      NOT NULL,
+    password   varchar(60)              NOT NULL,
+    profile_id uuid,
+    role       varchar(20)              NOT NULL
 );
 
--- 채널 테이블 생성
+-- BinaryContent
+CREATE TABLE binary_contents
+(
+    id           uuid PRIMARY KEY,
+    created_at   timestamp with time zone NOT NULL,
+    file_name    varchar(255)             NOT NULL,
+    size         bigint                   NOT NULL,
+    content_type varchar(100)             NOT NULL
+--     ,bytes        bytea        NOT NULL
+);
+
+
+-- Channel
 CREATE TABLE channels
 (
-    id          UUID PRIMARY KEY,
+    id          uuid PRIMARY KEY,
     created_at  timestamp with time zone NOT NULL,
     updated_at  timestamp with time zone,
-    name        VARCHAR(100),
-    description VARCHAR(500),
-    type        VARCHAR(10)              NOT NULL
+    name        varchar(100),
+    description varchar(500),
+    type        varchar(10)              NOT NULL
 );
 
--- 채널 멤버 테이블 생성
-CREATE TABLE channel_members
-(
-    channel_id UUID,
-    user_id    UUID
-);
-
--- 메시지 테이블 생성
+-- Message
 CREATE TABLE messages
 (
-    id         UUID PRIMARY KEY,
+    id         uuid PRIMARY KEY,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone,
-    content    TEXT,
-    channel_id UUID                     NOT NULL,
-    author_id  UUID
+    content    text,
+    channel_id uuid                     NOT NULL,
+    author_id  uuid
 );
 
--- 메시지 첨부파일 테이블 생성
+-- Message.attachments
 CREATE TABLE message_attachments
 (
-    message_id    UUID,
-    attachment_id UUID,
+    message_id    uuid,
+    attachment_id uuid,
     PRIMARY KEY (message_id, attachment_id)
 );
 
--- 이미지 파일 테이블 생성
-CREATE TABLE binary_contents
-(
-    id           UUID PRIMARY KEY,
-    created_at   timestamp with time zone NOT NULL,
-    file_name    VARCHAR(255)             NOT NULL,
-    size         BIGINT                   NOT NULL,
-    content_type VARCHAR(100)             NOT NULL
-);
-
--- 유저 상태 테이블 생성
-CREATE TABLE user_statuses
-(
-    id             UUID PRIMARY KEY,
-    created_at     timestamp with time zone NOT NULL,
-    updated_at     timestamp with time zone,
-    user_id        UUID UNIQUE              NOT NULL,
-    last_active_at timestamp with time zone NOT NULL
-);
-
--- 메시지 읽음 상태 테이블 생성
+-- ReadStatus
 CREATE TABLE read_statuses
 (
-    id           UUID PRIMARY KEY,
+    id           uuid PRIMARY KEY,
     created_at   timestamp with time zone NOT NULL,
     updated_at   timestamp with time zone,
-    user_id      UUID                     NOT NULL,
-    channel_id   UUID                     NOT NULL,
+    user_id      uuid                     NOT NULL,
+    channel_id   uuid                     NOT NULL,
     last_read_at timestamp with time zone NOT NULL,
     UNIQUE (user_id, channel_id)
 );
 
 
--- 제약조건 설정
--- User -> BinaryContent (1:1)
+-- 제약 조건
+-- User (1) -> BinaryContent (1)
 ALTER TABLE users
     ADD CONSTRAINT fk_user_binary_content
         FOREIGN KEY (profile_id)
             REFERENCES binary_contents (id)
             ON DELETE SET NULL;
 
--- UserStatus -> User (1:1)
-ALTER TABLE user_statuses
-    ADD CONSTRAINT fk_user_status_user
-        FOREIGN KEY (user_id)
-            REFERENCES users (id)
-            ON DELETE CASCADE;
-
--- Message -> Channel (N:1)
+-- Message (N) -> Channel (1)
 ALTER TABLE messages
     ADD CONSTRAINT fk_message_channel
         FOREIGN KEY (channel_id)
             REFERENCES channels (id)
             ON DELETE CASCADE;
 
--- Message -> Author (N:1)
+-- Message (N) -> Author (1)
 ALTER TABLE messages
     ADD CONSTRAINT fk_message_user
         FOREIGN KEY (author_id)
             REFERENCES users (id)
             ON DELETE SET NULL;
 
--- MessageAttachment -> BinaryContent (1:1)
+-- MessageAttachment (1) -> BinaryContent (1)
 ALTER TABLE message_attachments
     ADD CONSTRAINT fk_message_attachment_binary_content
         FOREIGN KEY (attachment_id)
             REFERENCES binary_contents (id)
             ON DELETE CASCADE;
 
--- ReadStatus -> User (N:1)
+-- ReadStatus (N) -> User (1)
 ALTER TABLE read_statuses
     ADD CONSTRAINT fk_read_status_user
         FOREIGN KEY (user_id)
             REFERENCES users (id)
             ON DELETE CASCADE;
 
--- ReadStatus -> Channel (N:1)
+-- ReadStatus (N) -> User (1)
 ALTER TABLE read_statuses
     ADD CONSTRAINT fk_read_status_channel
         FOREIGN KEY (channel_id)
             REFERENCES channels (id)
             ON DELETE CASCADE;
+
+CREATE TABLE persistent_logins
+(
+    username  varchar(64) not null,
+    series    varchar(64) primary key,
+    token     varchar(64) not null,
+    last_used timestamp   not null
+);
+
+CREATE TABLE jwt_sessions
+(
+    id              uuid PRIMARY KEY,
+    created_at      timestamp with time zone NOT NULL,
+    updated_at      timestamp with time zone,
+
+    user_id         uuid                     NOT NULL,
+    access_token    TEXT UNIQUE              NOT NULL,
+    refresh_token   TEXT UNIQUE              NOT NULL,
+    expiration_time timestamp with time zone NOT NULL
+);
+

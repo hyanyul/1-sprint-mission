@@ -1,22 +1,17 @@
 package com.sprint.mission.discodeit.service;
 
-import com.sprint.mission.discodeit.dto.binarycontent.BinaryContentCreateRequest;
-import com.sprint.mission.discodeit.dto.binarycontent.BinaryContentDto;
-
+import com.sprint.mission.discodeit.dto.data.BinaryContentDto;
+import com.sprint.mission.discodeit.dto.request.BinaryContentCreateRequest;
 import java.util.List;
 import java.util.UUID;
 
 public interface BinaryContentService {
 
-  // 프로필 사진 생성
   BinaryContentDto create(BinaryContentCreateRequest request);
 
-  // 프로필 사진 단건 검색
   BinaryContentDto find(UUID binaryContentId);
 
-  // 프로필 사진 다건 검색
   List<BinaryContentDto> findAllByIdIn(List<UUID> binaryContentIds);
 
-  // 프로필 사진 삭제
   void delete(UUID binaryContentId);
 }

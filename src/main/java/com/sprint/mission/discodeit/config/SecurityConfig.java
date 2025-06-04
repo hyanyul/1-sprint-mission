@@ -1,121 +1,135 @@
 package com.sprint.mission.discodeit.config;
 
-import com.sprint.mission.discodeit.dto.user.UserDto;
-import com.sprint.mission.discodeit.mapper.UserMapper;
-import com.sprint.mission.discodeit.repository.UserRepository;
-import com.sprint.mission.discodeit.security.CustomAuthenticationFilter;
-import com.sprint.mission.discodeit.security.CustomUserDetails;
-import com.sprint.mission.discodeit.security.RoleChangeDetectionFilter;
-import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sprint.mission.discodeit.entity.Role;
+import com.sprint.mission.discodeit.security.CustomLoginFailureHandler;
+import com.sprint.mission.discodeit.security.JsonUsernamePasswordAuthenticationFilter;
+import com.sprint.mission.discodeit.security.SecurityMatchers;
+import com.sprint.mission.discodeit.security.jwt.JwtAuthenticationFilter;
+import com.sprint.mission.discodeit.security.jwt.JwtLoginSuccessHandler;
+import com.sprint.mission.discodeit.security.jwt.JwtLogoutHandler;
+import com.sprint.mission.discodeit.security.jwt.JwtService;
+import java.util.List;
+import java.util.stream.IntStream;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchyAuthoritiesMapper;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
-import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
+import org.springframework.security.web.authentication.session.NullAuthenticatedSessionStrategy;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
-// TODO: 기본 기능 구현 후 리팩토링 (service단으로 분리)
+@Slf4j
 @Configuration
 @EnableWebSecurity
-@RequiredArgsConstructor
+@EnableMethodSecurity
 public class SecurityConfig {
 
-  private final UserMapper userMapper;
-  private final UserRepository userRepository;
+  @Bean
+  public SecurityFilterChain filterChain(
+      HttpSecurity http,
+      ObjectMapper objectMapper,
+      DaoAuthenticationProvider daoAuthenticationProvider,
+      JwtService jwtService
+  )
+      throws Exception {
+    http
+        .authenticationProvider(daoAuthenticationProvider)
+        .authorizeHttpRequests(authorize -> authorize
+            .requestMatchers(SecurityMatchers.PUBLIC_MATCHERS).permitAll()
+            .anyRequest().hasRole(Role.USER.name())
+        )
+        .csrf(csrf ->
+            csrf
+                .ignoringRequestMatchers(SecurityMatchers.LOGOUT)
+                .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
+                .sessionAuthenticationStrategy(new NullAuthenticatedSessionStrategy())
+        )
+        .logout(logout ->
+            logout
+                .logoutRequestMatcher(SecurityMatchers.LOGOUT)
+                .logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler())
+                .addLogoutHandler(new JwtLogoutHandler(jwtService))
+        )
+        .with(
+            new JsonUsernamePasswordAuthenticationFilter.Configurer(objectMapper),
+            configurer ->
+                configurer
+                    .successHandler(new JwtLoginSuccessHandler(objectMapper, jwtService))
+                    .failureHandler(new CustomLoginFailureHandler(objectMapper))
+        )
+        .sessionManagement(session ->
+            session
+                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+        )
+        .addFilterBefore(new JwtAuthenticationFilter(jwtService, objectMapper),
+            JsonUsernamePasswordAuthenticationFilter.class)
+    ;
+
+    return http.build();
+  }
 
   @Bean
-  public SecurityFilterChain securityFilterChain(HttpSecurity http,
-      AuthenticationManager authManager, SecurityContextRepository contextRepository)
-      throws Exception {
-
-    CustomAuthenticationFilter customFilter = new CustomAuthenticationFilter(authManager);
-    RoleChangeDetectionFilter roleFilter = new RoleChangeDetectionFilter(userRepository);
-
-    // 로그인 성공 시 세션에 사용자 정보 저장
-    customFilter.setAuthenticationSuccessHandler((request, response, authentication) -> {
-      // 인증된 사용자 정보
-      CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
-
-      // UserDto로 변환
-      UserDto userDto = userMapper.toDto(userDetails.getUser());
-
-      // 세션에 사용자 정보 저장
-      request.getSession().setAttribute("LOGIN_USER", userDto);
-
-      response.setStatus(HttpServletResponse.SC_OK);
-      response.setContentType("application/json");
-      response.getWriter().write("{\"message\":\"로그인 성공\"}");
-    });
-
-    // 실패 시 JSON 메시지 반환
-    customFilter.setAuthenticationFailureHandler((request, response, exception) -> {
-      response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-      response.setContentType("application/json");
-      response.getWriter().write("{\"message\":\"아이디 또는 비밀번호가 올바르지 않습니다.\"}");
-    });
-    customFilter.setSecurityContextRepository(contextRepository);
-
-    // 커스텀 필터 등록
-    http
-        .addFilterAt(customFilter, UsernamePasswordAuthenticationFilter.class)
-        .addFilterAfter(roleFilter, UsernamePasswordAuthenticationFilter.class);
-
-    // 보안 설정
-    http
-        .authorizeHttpRequests(auth -> auth
-            .requestMatchers(
-                "/api/auth/csrf-token",
-                "/api/auth/login",
-                "/api/auth/me"
-            ).permitAll()
-            .requestMatchers(HttpMethod.POST, "/api/users").permitAll()
-            .requestMatchers("/api/auth/role").hasRole("ADMIN")
-            .requestMatchers(HttpMethod.POST, "/api/channels/public").hasRole("CHANNEL_MANAGER")
-            .requestMatchers(HttpMethod.PATCH, "/api/channels/{channelId}").hasRole("CHANNEL_MANAGER")
-            .requestMatchers(HttpMethod.DELETE, "/api/channels/{channelId}").hasRole("CHANNEL_MANAGER")
-            .requestMatchers("/api/**").hasRole("USER") // /api/를 포함할 경우 인증 필요
-            .anyRequest().permitAll())  // 그 외 모든 url 요청에 대해 인증 X
-        .httpBasic(AbstractHttpConfigurer::disable) // 로그인 팝업 없애기 위해 끔
-        .formLogin(AbstractHttpConfigurer::disable)  // security가 기본 제공하는 form 기반 로그인 비활성화
-        .logout(AbstractHttpConfigurer::disable); // logout 필터 제거
-
-    return http.build();  // 필터 체인 만들어짐
+  public String debugFilterChain(@Qualifier("filterChain") SecurityFilterChain chain) {
+    log.debug("Debug Filter Chain...");
+    int filterSize = chain.getFilters().size();
+    IntStream.range(0, filterSize)
+        .forEach(idx -> {
+          log.debug("[{}/{}] {}", idx + 1, filterSize, chain.getFilters().get(idx));
+        });
+    return "debugFilterChain";
   }
 
   @Bean
   public PasswordEncoder passwordEncoder() {
-    return new BCryptPasswordEncoder(); // BCrypt 암호화 사용
+    return new BCryptPasswordEncoder();
   }
 
   @Bean
-  public AuthenticationProvider authenticationProvider(UserDetailsService userDetailsService,
-      PasswordEncoder passwordEncoder) {
-
+  public DaoAuthenticationProvider daoAuthenticationProvider(
+      UserDetailsService userDetailsService,
+      PasswordEncoder passwordEncoder,
+      RoleHierarchy roleHierarchy
+  ) {
     DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
     provider.setUserDetailsService(userDetailsService);
     provider.setPasswordEncoder(passwordEncoder);
+    provider.setAuthoritiesMapper(new RoleHierarchyAuthoritiesMapper(roleHierarchy));
     return provider;
   }
 
   @Bean
-  public SecurityContextRepository securityContextRepository() {
-    return new HttpSessionSecurityContextRepository();
+  public AuthenticationManager authenticationManager(
+      List<AuthenticationProvider> authenticationProviders) {
+    return new ProviderManager(authenticationProviders);
   }
 
   @Bean
-  public AuthenticationManager authenticationManager(HttpSecurity http) throws Exception {
-    return http.getSharedObject(AuthenticationManagerBuilder.class).build();
+  public RoleHierarchy roleHierarchy() {
+    return RoleHierarchyImpl.withDefaultRolePrefix()
+        .role(Role.ADMIN.name())
+        .implies(Role.USER.name(), Role.CHANNEL_MANAGER.name())
+
+        .role(Role.CHANNEL_MANAGER.name())
+        .implies(Role.USER.name())
+
+        .build();
   }
 }

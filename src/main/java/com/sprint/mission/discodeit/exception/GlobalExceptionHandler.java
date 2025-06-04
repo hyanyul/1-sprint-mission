@@ -6,6 +6,7 @@ import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -15,27 +16,33 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-  // 커스텀 에러
-  @ExceptionHandler(DiscodeitException.class)
-  public ResponseEntity<ErrorResponse> handleDiscodeitException(DiscodeitException e) {
-
-    log.error("커스텀 예외 발생: code={}, message={}", e.getErrorCode(), e.getMessage());
-    ErrorResponse response = new ErrorResponse(e);
-
+  @ExceptionHandler(Exception.class)
+  public ResponseEntity<ErrorResponse> handleException(Exception e) {
+    log.error("예상치 못한 오류 발생: {}", e.getMessage(), e);
+    ErrorResponse errorResponse = new ErrorResponse(e, HttpStatus.INTERNAL_SERVER_ERROR.value());
     return ResponseEntity
-        .status(response.getStatus())
+        .status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .body(errorResponse);
+  }
+
+  @ExceptionHandler(DiscodeitException.class)
+  public ResponseEntity<ErrorResponse> handleDiscodeitException(DiscodeitException exception) {
+    log.error("커스텀 예외 발생: code={}, message={}", exception.getErrorCode(), exception.getMessage(),
+        exception);
+    HttpStatus status = determineHttpStatus(exception);
+    ErrorResponse response = new ErrorResponse(exception, status.value());
+    return ResponseEntity
+        .status(status)
         .body(response);
   }
 
-  // 유효성 검사 에러
   @ExceptionHandler(MethodArgumentNotValidException.class)
-  public ResponseEntity<ErrorResponse> handleValidationException(
-      MethodArgumentNotValidException e) {
-
-    log.error("요청 유효성 검사 실패: {}", e.getMessage());
+  public ResponseEntity<ErrorResponse> handleValidationExceptions(
+      MethodArgumentNotValidException ex) {
+    log.error("요청 유효성 검사 실패: {}", ex.getMessage());
 
     Map<String, Object> validationErrors = new HashMap<>();
-    e.getBindingResult().getAllErrors().forEach(error -> {
+    ex.getBindingResult().getAllErrors().forEach(error -> {
       String fieldName = ((FieldError) error).getField();
       String errorMessage = error.getDefaultMessage();
       validationErrors.put(fieldName, errorMessage);
@@ -43,27 +50,37 @@ public class GlobalExceptionHandler {
 
     ErrorResponse response = new ErrorResponse(
         Instant.now(),
-        ErrorCode.VALIDATION_ERROR.name(),
-        ErrorCode.VALIDATION_ERROR.getMessage(),
+        "VALIDATION_ERROR",
+        "요청 데이터 유효성 검사에 실패했습니다",
         validationErrors,
-        e.getClass().getSimpleName(),
-        ErrorCode.VALIDATION_ERROR.getStatus()
+        ex.getClass().getSimpleName(),
+        HttpStatus.BAD_REQUEST.value()
     );
 
     return ResponseEntity
-        .status(e.getStatusCode())
+        .status(HttpStatus.BAD_REQUEST)
         .body(response);
   }
 
-  // 서버 에러
-  @ExceptionHandler(Exception.class)
-  public ResponseEntity<ErrorResponse> handleException(Exception e) {
-
-    log.error("예상치 못한 오류 발생: {}", e.getMessage(), e);
-    ErrorResponse errorResponse = new ErrorResponse(e, ErrorCode.INTERNAL_SERVER_ERROR.getStatus());
-
+  @ExceptionHandler(AuthorizationDeniedException.class)
+  public ResponseEntity<ErrorResponse> handleAuthorizationDeniedException(
+      AuthorizationDeniedException exception) {
+    ErrorResponse errorResponse = new ErrorResponse(exception, HttpStatus.FORBIDDEN.value());
     return ResponseEntity
-        .status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .status(errorResponse.getStatus())
         .body(errorResponse);
+  }
+
+  private HttpStatus determineHttpStatus(DiscodeitException exception) {
+    ErrorCode errorCode = exception.getErrorCode();
+    return switch (errorCode) {
+      case USER_NOT_FOUND, CHANNEL_NOT_FOUND, MESSAGE_NOT_FOUND, BINARY_CONTENT_NOT_FOUND,
+           READ_STATUS_NOT_FOUND, USER_STATUS_NOT_FOUND -> HttpStatus.NOT_FOUND;
+      case DUPLICATE_USER, DUPLICATE_READ_STATUS, DUPLICATE_USER_STATUS -> HttpStatus.CONFLICT;
+      case INVALID_USER_CREDENTIALS, INVALID_TOKEN, TOKEN_NOT_FOUND, INVALID_TOKEN_SECRET ->
+          HttpStatus.UNAUTHORIZED;
+      case PRIVATE_CHANNEL_UPDATE, INVALID_REQUEST -> HttpStatus.BAD_REQUEST;
+      case INTERNAL_SERVER_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
+    };
   }
 }

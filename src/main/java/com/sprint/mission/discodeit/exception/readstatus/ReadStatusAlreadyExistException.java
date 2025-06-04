@@ -6,7 +6,7 @@ import java.util.UUID;
 public class ReadStatusAlreadyExistException extends ReadStatusException {
 
   public ReadStatusAlreadyExistException() {
-    super(ErrorCode.DUPLICATION_READ_STATUS);
+    super(ErrorCode.DUPLICATE_READ_STATUS);
   }
 
   public static ReadStatusAlreadyExistException withUserIdAndChannelId(UUID userId,

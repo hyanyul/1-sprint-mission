@@ -1,8 +1,8 @@
 package com.sprint.mission.discodeit.controller.api;
 
-import com.sprint.mission.discodeit.dto.readStatus.ReadStatusCreateRequest;
-import com.sprint.mission.discodeit.dto.readStatus.ReadStatusDto;
-import com.sprint.mission.discodeit.dto.readStatus.ReadStatusUpdateRequest;
+import com.sprint.mission.discodeit.dto.data.ReadStatusDto;
+import com.sprint.mission.discodeit.dto.request.ReadStatusCreateRequest;
+import com.sprint.mission.discodeit.dto.request.ReadStatusUpdateRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
@@ -64,4 +64,4 @@ public interface ReadStatusApi {
   ResponseEntity<List<ReadStatusDto>> findAllByUserId(
       @Parameter(description = "조회할 User ID") UUID userId
   );
-}
+} 

@@ -7,7 +7,6 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -15,20 +14,22 @@ import lombok.NoArgsConstructor;
 @Table(name = "channels")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor
-public class Channel extends BaseUpdatableEntity {      // 채널 (게시판)
+public class Channel extends BaseUpdatableEntity {
 
   @Enumerated(EnumType.STRING)
-  @Column(name = "type", nullable = false)
-  private ChannelType type;   // 채널 타입 (공개/비공개)
+  @Column(nullable = false)
+  private ChannelType type;
+  @Column(length = 100)
+  private String name;
+  @Column(length = 500)
+  private String description;
 
-  @Column(name = "name", length = 100)
-  private String name;    // 채널 이름
+  public Channel(ChannelType type, String name, String description) {
+    this.type = type;
+    this.name = name;
+    this.description = description;
+  }
 
-  @Column(name = "description", length = 500)
-  private String description;   // 채널 설명
-
-  // 채널 수정
   public void update(String newName, String newDescription) {
     if (newName != null && !newName.equals(this.name)) {
       this.name = newName;

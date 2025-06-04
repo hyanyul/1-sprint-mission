@@ -19,44 +19,32 @@ import lombok.Setter;
 @Entity
 @Table(name = "users")
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class User extends BaseUpdatableEntity {             // 유저 정보
+@NoArgsConstructor(access = AccessLevel.PROTECTED)  // JPA를 위한 기본 생성자
+public class User extends BaseUpdatableEntity {
 
-  @Column(name = "username", length = 50, nullable = false, unique = true)
-  private String username;    // 아이디
-
-  @Column(name = "email", length = 100, nullable = false, unique = true)
-  private String email;   // 이메일
-
-  @Column(name = "password", length = 60, nullable = false)
-  private String password;    // 비밀번호
-
+  @Column(length = 50, nullable = false, unique = true)
+  private String username;
+  @Column(length = 100, nullable = false, unique = true)
+  private String email;
+  @Column(length = 60, nullable = false)
+  private String password;
   @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
   @JoinColumn(name = "profile_id", columnDefinition = "uuid")
-  private BinaryContent profile;    // 프로필 사진
-
-  @JsonManagedReference   // 순환 참조 문제 해결 - 부모
-  @Setter(AccessLevel.PROTECTED)  // status 값을 같은 패키지나 하위 클래스에서는 수정 가능하나, 외부 클래스에서는 변경 불가
-  @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
-  private UserStatus status;    // 유저 접속 상태
-
-  @Column(name = "role", length = 30, nullable = false)
+  private BinaryContent profile;
   @Enumerated(EnumType.STRING)
+  @Column(nullable = false)
   private Role role;
 
-  // 생성자
   public User(String username, String email, String password, BinaryContent profile) {
     this.username = username;
     this.email = email;
     this.password = password;
     this.profile = profile;
-    this.role = Role.ROLE_USER;
+    this.role = Role.USER;
   }
 
-  // 유저 수정
   public void update(String newUsername, String newEmail, String newPassword,
       BinaryContent newProfile) {
-
     if (newUsername != null && !newUsername.equals(this.username)) {
       this.username = newUsername;
     }
@@ -71,8 +59,9 @@ public class User extends BaseUpdatableEntity {             // 유저 정보
     }
   }
 
-  // 권한 변경
   public void updateRole(Role newRole) {
-    this.role = newRole;
+    if (this.role != newRole) {
+      this.role = newRole;
+    }
   }
 }
